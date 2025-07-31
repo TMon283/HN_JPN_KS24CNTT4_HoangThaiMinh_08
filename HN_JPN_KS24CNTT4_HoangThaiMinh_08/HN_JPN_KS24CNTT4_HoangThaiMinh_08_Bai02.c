@@ -1,5 +1,6 @@
-#include<stdio.h>
-#include<stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef struct Student {
     int id;
@@ -11,12 +12,12 @@ typedef struct Node {
     Student student;
     struct Node* left;
     struct Node* right;
-}Node;
+} Node;
 
 typedef struct TreeNode {
-    Node* root;
+    Node* node;
     struct TreeNode* next;
-}TreeNode;
+} TreeNode;
 
 typedef struct {
     TreeNode* front;
@@ -26,49 +27,56 @@ typedef struct {
 Node* createNode(Student student) {
     Node* newNode = (Node*)malloc(sizeof(Node));
     newNode->student = student;
-    newNode->left = NULL;
-    newNode->right = NULL;
+    newNode->left = newNode->right = NULL;
     return newNode;
 }
 
 Queue* createQueue() {
-    Queue* newQueue = (Queue*)malloc(sizeof(Queue));
-    newQueue->front = NULL;
-    newQueue->rear = NULL;
-    return newQueue;
+    Queue* q = (Queue*)malloc(sizeof(Queue));
+    q->front = q->rear = NULL;
+    return q;
 }
 
-void enqueue(Queue* queue, Node* node) {
-    TreeNode* newNode = (TreeNode*)malloc(sizeof(TreeNode));
-    newNode->root = node;
-    newNode->next = NULL;
-    if (!queue->rear) {
-        queue->front = queue->rear = newNode;
+void enqueue(Queue* q, Node* node) {
+    TreeNode* tnode = (TreeNode*)malloc(sizeof(TreeNode));
+    tnode->node = node;
+    tnode->next = NULL;
+    if (!q->rear) {
+        q->front = q->rear = tnode;
     } else {
-        queue->rear->next = newNode;
-        queue->rear = newNode;
+        q->rear->next = tnode;
+        q->rear = tnode;
     }
 }
 
-Node* dequeue(Queue* queue) {
-    if (!queue->front) return NULL;
-    TreeNode* temp = queue->front;
-    Node* node = temp->root;
-    queue->front = queue->front->next;
-    queue->rear = queue->rear->next;
+Node* dequeue(Queue* q) {
+    if (!q->front) return NULL;
+    TreeNode* temp = q->front;
+    Node* result = temp->node;
+    q->front = q->front->next;
+    if (!q->front) q->rear = NULL;
     free(temp);
-    free(node);
-    return node;
+    return result;
 }
 
-int isEmpty(Queue* queue) {
-    return queue->front == NULL;
+int isEmpty(Queue* q) {
+    return q->front == NULL;
 }
 
-int exists(Node* root, Student student) {
+void freeQueue(Queue* q) {
+    TreeNode* cur = q->front;
+    while (cur) {
+        TreeNode* nxt = cur->next;
+        free(cur);
+        cur = nxt;
+    }
+    free(q);
+}
+
+int exists(Node* root, int id) {
     if (!root) return 0;
-    if (root->student.id == student.id) return 1;
-    return exists(root->left, student) || exists(root->right, student);
+    if (root->student.id == id) return 1;
+    return exists(root->left, id) || exists(root->right, id);
 }
 
 void insertNodeToTree(Node** rootRef, Student student) {
@@ -76,28 +84,28 @@ void insertNodeToTree(Node** rootRef, Student student) {
         *rootRef = createNode(student);
         return;
     }
-    if (exists(*rootRef, student)) {
+    if (exists(*rootRef, student.id)) {
         printf("Student already exists\n");
         return;
     }
-    Queue* queue = createQueue();
-    enqueue(queue, *rootRef);
-    while (!isEmpty(queue)) {
-        Node* current = dequeue(queue);
-        if (!current->left) {
-            current->left = createNode(student);
+    Queue* q = createQueue();
+    enqueue(q, *rootRef);
+    while (!isEmpty(q)) {
+        Node* cur = dequeue(q);
+        if (!cur->left) {
+            cur->left = createNode(student);
             break;
         } else {
-            enqueue(queue, current->left);
+            enqueue(q, cur->left);
         }
-        if (!current->right) {
-            current->right = createNode(student);
+        if (!cur->right) {
+            cur->right = createNode(student);
             break;
         } else {
-            enqueue(queue, current->right);
+            enqueue(q, cur->right);
         }
     }
-    free(queue);
+    freeQueue(q);
 }
 
 void inorder(Node* root) {
@@ -105,51 +113,136 @@ void inorder(Node* root) {
     inorder(root->left);
     printf("ID:%d\n", root->student.id);
     printf("Name:%s\n", root->student.name);
-    printf("Age:%d\n", root->student.age);
+    printf("Age:%d\n\n", root->student.age);
     inorder(root->right);
 }
 
+Node* searchStudent(Node* root, int id) {
+    if (!root) return NULL;
+    if (root->student.id == id) return root;
+    Node* leftRes = searchStudent(root->left, id);
+    if (leftRes) return leftRes;
+    return searchStudent(root->right, id);
+}
+
+void deleteDeepestNode(Node* root, Node* delNode) {
+    Queue* q = createQueue();
+    enqueue(q, root);
+    Node* cur = NULL;
+    while (!isEmpty(q)) {
+        cur = dequeue(q);
+        if (cur->left) {
+            if (cur->left == delNode) {
+                free(cur->left);
+                cur->left = NULL;
+                break;
+            } else {
+                enqueue(q, cur->left);
+            }
+        }
+        if (cur->right) {
+            if (cur->right == delNode) {
+                free(cur->right);
+                cur->right = NULL;
+                break;
+            } else {
+                enqueue(q, cur->right);
+            }
+        }
+    }
+    freeQueue(q);
+}
+
+Node* deleteStudent(Node* root, int id) {
+    if (!root) return NULL;
+    if (!root->left && !root->right) {
+        if (root->student.id == id) {
+            free(root);
+            return NULL;
+        }
+        return root;
+    }
+    Queue* q = createQueue();
+    enqueue(q, root);
+    Node* keyNode = NULL;
+    Node* cur = NULL;
+    while (!isEmpty(q)) {
+        cur = dequeue(q);
+        if (cur->student.id == id) {
+            keyNode = cur;
+        }
+        if (cur->left) enqueue(q, cur->left);
+        if (cur->right) enqueue(q, cur->right);
+    }
+    if (keyNode) {
+        keyNode->student = cur->student;
+        deleteDeepestNode(root, cur);
+    } else {
+        printf("Student not found\n");
+    }
+    freeQueue(q);
+    return root;
+}
+
 int main() {
-    int choice;
     Node* root = NULL;
+    int choice;
     Student student;
-    int id = 1;
+    int nextId = 1;
+
     do {
-        printf("\n-----STUDENT MANAGER-----\n");
+        printf("\n----- STUDENT MANAGER -----\n\n");
         printf("1. Add Student\n");
         printf("2. Show Student List\n");
         printf("3. Search Student\n");
         printf("4. Delete Student\n");
         printf("5. Exit\n");
-        printf("Enter your choice:");
+        printf("Enter your choice: ");
         scanf("%d", &choice);
+
         switch (choice) {
-            case 1:
-                student.id = id++;
-                printf("Enter Student Name:");
+            case 1: {
+                student.id = nextId++;
+                printf("Enter Student Name: ");
                 scanf("%s", student.name);
-                printf("Enter Student Age:");
+                printf("Enter Student Age: ");
                 scanf("%d", &student.age);
                 insertNodeToTree(&root, student);
                 break;
+            }
             case 2:
-                printf("INORDER\n");
+                printf("\n--- STUDENT LIST ---\n\n");
                 inorder(root);
                 break;
-            case 3:
-
+            case 3: {
+                int searchId;
+                printf("Enter Student ID to search: ");
+                scanf("%d", &searchId);
+                Node* found = searchStudent(root, searchId);
+                if (found) {
+                    printf("\nStudent Found:\n");
+                    printf("ID:%d\n", found->student.id);
+                    printf("Name:%s\n", found->student.name);
+                    printf("Age:%d\n", found->student.age);
+                } else {
+                    printf("Student not found\n");
+                }
                 break;
-            case 4:
+            }
+            case 4: {
                 int deleteId;
-                printf("Enter Student ID to delete:");
+                printf("Enter Student ID to delete: ");
                 scanf("%d", &deleteId);
-
+                root = deleteStudent(root, deleteId);
+                break;
+            }
             case 5:
-                printf("Exit...\n");
+                printf("Exiting...\n");
                 break;
             default:
                 printf("Invalid choice\n");
         }
-    }while (choice != 5);
+    } while (choice != 5);
+
     return 0;
 }
